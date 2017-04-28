@@ -8,6 +8,17 @@ const MOVE_MAG = 10;
 const FIELD_X_LIMIT = 250;
 const FIELD_Y_LIMIT = 20;
 const FIELD_Z_LIMIT = 250;
+const PARTICLE_COUNT = 750;
+
+//--------------------------------------------------
+// Flags
+//--------------------------------------------------
+
+// true for Three Points, false for Three Sphere as particles
+var USE_POINTS_AS_PARTICLES = true;
+
+// use CANNON debug mode module to show wireframe physical bounding boxes
+var CANNON_DEBUG_MODE = false;
 
 //--------------------------------------------------
 // Instance Variables
@@ -37,11 +48,24 @@ var boxShape1, boxMass1, boxBody1;
 var boxShape2, boxMass2, boxBody2;
 var boxShape3, boxMass3, boxBody3;
 
+var cannonDebugRenderer;
+
+//--------------------------------------------------
+// Main Script
+//--------------------------------------------------
+
 initWorld();
 initScene();
 
-var CannonDebugRenderer = new THREE.CannonDebugRenderer(scene, world);
+if (CANNON_DEBUG_MODE)
+	cannonDebugRenderer = new THREE.CannonDebugRenderer(scene, world);
+
 animate();
+
+
+//====================================================================================================
+// Functions!
+//====================================================================================================
 
 function initWorld() {
 	console.log("Initializing physics");
@@ -71,12 +95,6 @@ function initWorld() {
 	planeBody.position.set(0,0,0);
 
 	world.addBody(planeBody);
-
-	//--------------------------------------------------
-	// Container Planes
-	//--------------------------------------------------
-
-
 
 	//--------------------------------------------------
 	// Movable Objects
@@ -131,21 +149,6 @@ function initWorld() {
 
 	boxBody3.position.set(-30, 100, -100);
 	world.addBody(boxBody3);
-
-	//--------------------------------------------------
-	// User Controlled Objects
-	//--------------------------------------------------
-	botShape = new CANNON.Box(new CANNON.Vec3( 2, 2, 2 ));
-	botMass = 0; 
-	botBody = new CANNON.Body({
-		mass: botMass,
-		shape: botShape,
-		type: CANNON.Body.KINEMATIC,
-		position: new CANNON.Vec3(0, 1, 0)
-	});
-
-	world.addBody(botBody);
-
 }
 
 function initScene() {
@@ -176,7 +179,7 @@ function initScene() {
 		);
 
 	camera.position.z = 450;
-	camera.position.y = 150;
+	camera.position.y = 200;
 
 	// camera.rotation.x = Math.PI / 4;
 	camera.lookAt(new THREE.Vector3(0, 0, 0));
@@ -203,79 +206,72 @@ function initScene() {
 	scene.add(planeMesh);
 
 	//--------------------------------------------------
-	// User Controlled Objects
-	//--------------------------------------------------
-
-	botGeometry = new THREE.CubeGeometry( 1, 1, 1 );
-	botMaterial = new THREE.MeshPhongMaterial({
-			color: 0xf2a48a
-		});
-
-	botMesh = new THREE.Mesh(botGeometry, botMaterial);
-	scene.add(botMesh);
-
-	//--------------------------------------------------
 	// Particle system
 	//--------------------------------------------------
 
-	// create the particle variables
-	var particleCount = 500;
-	var particles = new THREE.Geometry();
-	var pMaterial = new THREE.MeshPhongMaterial({
-	      color: 0xaaaaaa,
-	      side: THREE.DoubleSide
-	    });
-
-	pMaterial.lights.value = true;
-
-	// create the particle system
-	particleSystem = new THREE.Group();
-
 	var parShape = new CANNON.Sphere(1);
-	particleBodyCompound = new CANNON.Body({
-		mass: 0,
-		shape: parShape,
-		type: CANNON.Body.KINEMATIC,
-		position: new CANNON.Vec3(pX, pY, pZ),
-		angularDamping: 0,
-		angularVelocity: new CANNON.Vec3(0, 10, 0),
-		linearDamping: 10
-	});
+		particleBodyCompound = new CANNON.Body({
+			mass: 0,
+			shape: parShape,
+			type: CANNON.Body.KINEMATIC,
+			position: new CANNON.Vec3(0, 0, 0),
+			angularDamping: 0,
+			angularVelocity: new CANNON.Vec3(0, 10, 0),
+			linearDamping: 10
+		});
 
-	// now create the individual particles
-	for (var p = 0; p < particleCount; p++) {
+	if (USE_POINTS_AS_PARTICLES) {
+		// create the particle variables
+		var particles = new THREE.Geometry();
+		var pMaterial = new THREE.PointsMaterial({
+			color: 0xaaaaaa,
+			size: 2.5
+		});
 
-		// create a particle with random
-		// position values, -250 -> 250
-		var pY = Math.random() * 125;
+		pMaterial.lights.value = true;
 
-		// var pY = 125 * p;
-		// var radius = Math.random() * pY/3;
-		var radius = pY/3;
-		var angle = Math.random() * 360;
+		// now create the individual particles
+		for (var p = 0; p < PARTICLE_COUNT; p++) {
 
-		var pX = radius * Math.cos(angle);
-		var pZ = radius * Math.sin(angle);
+			var point = generateTornadoPoint(125);
 
-		var particleGeo = new THREE.SphereGeometry(1,8,6);
-		var particleMat = pMaterial;
+			particles.vertices.push(point);
 
-		var particle = new THREE.Mesh(particleGeo, particleMat);
-		particle.position.set(pX, pY, pZ);
+			//create Cannon particles to go along with vertex, added as compound shapes
+			particleBodyCompound.addShape(parShape, point);
+		}
+		particleSystem = new THREE.Points(particles, pMaterial);
 
-		// add it to the geometry
-		particleSystem.add(particle);
+		world.addBody(particleBodyCompound);
+	} else {
+		// create the particle variables
+		var pMaterial = new THREE.MeshPhongMaterial({
+			color: 0xaaaaaa,
+			side: THREE.DoubleSide
+		});
 
-		//create Cannon particles to go along with it, added as compound shapes
-		particleBodyCompound.addShape(parShape, new CANNON.Vec3(pX, pY, pZ));
+		// create the particle system
+		particleSystem = new THREE.Group();
 
-		// particleBodies.push(parBody);
-		// world.addBody(parBody);
+		// now create the individual particles
+		for (var p = 0; p < PARTICLE_COUNT; p++) {
+
+			var point = generateTornadoPoint(125);
+
+			var particleGeo = new THREE.SphereGeometry(1,8,6);
+
+			var particle = new THREE.Mesh(particleGeo, pMaterial);
+			particle.position.copy(point);
+
+			// add it to the geometry
+			particleSystem.add(particle);
+
+			//create Cannon particles to go along with it, added as compound shapes
+			particleBodyCompound.addShape(parShape, point);
+		}
+
+		world.addBody(particleBodyCompound);
 	}
-
-	world.addBody(particleBodyCompound);
-
-	console.log(world);
 
 	// add it to the scene
 	scene.add(particleSystem);
@@ -333,7 +329,18 @@ function initScene() {
 	scene.add(dirLight);
 
 	window.addEventListener('keydown', onKeyDown, false );
+}
 
+function generateTornadoPoint(height) {
+	var pY = Math.random() * height;
+
+	var radius = pY/3;
+	var angle = Math.random() * 360;
+
+	var pX = radius * Math.cos(angle);
+	var pZ = radius * Math.sin(angle);
+
+	return new THREE.Vector3(pX, pY, pZ);
 }
 
 function onKeyDown(evt) {
@@ -341,45 +348,21 @@ function onKeyDown(evt) {
 
 		case 68: // 'right'
 			particleBodyCompound.velocity.set(MOVE_MAG, 0, 0);
-			// particleSystem.position.x = particleSystem.position.x + MOVE_MAG; 
-
-			// if (particleSystem.position.x > FIELD_X_LIMIT)
-			// 	particleSystem.position.x = FIELD_X_LIMIT;
 			break;
 		case 65: // 'left'
 			particleBodyCompound.velocity.set(-MOVE_MAG, 0, 0);
-			// particleSystem.position.x = particleSystem.position.x - MOVE_MAG; 
-
-			// if (particleSystem.position.x < -FIELD_X_LIMIT)
-			// 	particleSystem.position.x = -FIELD_X_LIMIT;
 			break;
 		case 83: // 'down'
 			particleBodyCompound.velocity.set(0, 0, MOVE_MAG);
-			// particleSystem.position.z = particleSystem.position.z + MOVE_MAG;
-
-			// if (particleSystem.position.z > FIELD_Z_LIMIT)
-			// 	particleSystem.position.z = FIELD_Z_LIMIT; 
 			break;
 		case 87: // 'up'
 			particleBodyCompound.velocity.set(0, 0, -MOVE_MAG);
-			// particleSystem.position.z = particleSystem.position.z - MOVE_MAG;
-
-			// if (particleSystem.position.z < -FIELD_Z_LIMIT)
-			// 	particleSystem.position.z = -FIELD_Z_LIMIT;  
 			break;
 		case 81: // 'raise'
 			particleBodyCompound.velocity.set(0, MOVE_MAG, 0);
-			// particleSystem.position.y = particleSystem.position.y + MOVE_MAG;
-
-			// if (particleSystem.position.y > FIELD_Y_LIMIT)
-			// 	particleSystem.position.y = FIELD_Y_LIMIT;
 			break;
 		case 69: // 'lower'
 			particleBodyCompound.velocity.set(0, -MOVE_MAG, 0);
-			// particleSystem.position.y = particleSystem.position.y - MOVE_MAG; 
-
-			// if (particleSystem.position.y < -FIELD_Y_LIMIT)
-			// 	particleSystem.position.y = -FIELD_Y_LIMIT;
 			break;
 		case 88: // 'stop linear motion'
 			particleBodyCompound.velocity.setZero();
@@ -389,8 +372,6 @@ function onKeyDown(evt) {
 
 function animate() {
 	requestAnimationFrame(animate);	
-
-	// particleSystem.rotation.y += Math.PI/30;
 
 	var event = window.event ? window.event : null;
 	if (event !== null)
@@ -419,13 +400,12 @@ function updatePhysics() {
 	boxMesh3.position.copy(boxBody3.position);
 	boxMesh3.quaternion.copy(boxBody3.quaternion);
 
-	// particleBodyCompound.position.copy(particleSystem.position);
-	// particleBodyCompound.quaternion.copy(particleSystem.quaternion);
 	particleSystem.position.copy(particleBodyCompound.position);
 	particleSystem.quaternion.copy(particleBodyCompound.quaternion);
 }
 
 function render() {
-	// CannonDebugRenderer.update();
+	if (CANNON_DEBUG_MODE)
+		cannonDebugRenderer.update();
 	renderer.render(scene, camera);
 }
