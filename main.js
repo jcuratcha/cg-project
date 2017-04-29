@@ -5,10 +5,7 @@ var gl; // WebGL context
 //--------------------------------------------------
 
 const MOVE_MAG = 10;
-const FIELD_X_LIMIT = 250;
-const FIELD_Y_LIMIT = 20;
-const FIELD_Z_LIMIT = 250;
-const PARTICLE_COUNT = 750;
+const PARTICLE_COUNT = 5750;
 
 //--------------------------------------------------
 // Flags
