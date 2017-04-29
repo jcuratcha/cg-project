@@ -4,8 +4,9 @@ var gl; // WebGL context
 // Globals/Constants
 //--------------------------------------------------
 
-const MOVE_MAG = 10;
-const PARTICLE_COUNT = 5750;
+const MOVE_MAG = 30;
+const PARTICLE_COUNT = 50;
+const TORNADO_SPEED = 50;
 
 //--------------------------------------------------
 // Flags
@@ -15,7 +16,9 @@ const PARTICLE_COUNT = 5750;
 var USE_POINTS_AS_PARTICLES = true;
 
 // use CANNON debug mode module to show wireframe physical bounding boxes
-var CANNON_DEBUG_MODE = false;
+var CANNON_DEBUG_MODE = true;
+
+var TORNADO_COUNTERCLOCKWISE = true;
 
 //--------------------------------------------------
 // Instance Variables
@@ -33,6 +36,14 @@ var boxGeometry1, boxMaterial1, boxMesh1;
 var boxGeometry2, boxMaterial2, boxMesh2;
 var boxGeometry3, boxMaterial3, boxMesh3;
 
+var houseRoofGeo, houseRoofMat, houseRoofMesh;
+var houseWallGeoLeft, houseWallMatLeft, houseWallMeshLeft;
+var houseWallGeoRight, houseWallMatRight, houseWallMeshRight;
+
+var houseRoofGeo2, houseRoofMat2, houseRoofMesh2;
+var houseWallGeoLeft2, houseWallMatLeft2, houseWallMeshLeft2;
+var houseWallGeoRight2, houseWallMatRight2, houseWallMeshRight2;
+
 // Cannon
 var world, timeStep=1/60;
 var particleBodyCompound;
@@ -44,6 +55,14 @@ var botShape, botMass, botBody;
 var boxShape1, boxMass1, boxBody1;
 var boxShape2, boxMass2, boxBody2;
 var boxShape3, boxMass3, boxBody3;
+
+var houseRoofShape, houseRoofMass, houseRoofBody;
+var houseWallShapeLeft, houseWallMassLeft, houseWallBodyLeft;
+var houseWallShapeRight, houseWallMassRight, houseWallBodyRight;
+
+var houseRoofShape2, houseRoofMass2, houseRoofBody2;
+var houseWallShapeLeft2, houseWallMassLeft2, houseWallBodyLeft2;
+var houseWallShapeRight2, houseWallMassRight2, houseWallBodyRight2;
 
 var cannonDebugRenderer;
 
@@ -146,6 +165,69 @@ function initWorld() {
 
 	boxBody3.position.set(-30, 100, -100);
 	world.addBody(boxBody3);
+
+	// house
+	houseRoofShape = new CANNON.Box(new CANNON.Vec3(10, 1, 10));
+	houseRoofMass = 200;
+
+	houseRoofBody = new CANNON.Body({
+		shape: houseRoofShape,
+		mass: houseRoofMass,
+		position: new CANNON.Vec3(50, 10, 50)
+	});
+	world.addBody(houseRoofBody);
+
+	houseWallShapeLeft = new CANNON.Box(new CANNON.Vec3(2, 5, 10));
+	houseWallMassLeft = 200;
+
+	houseWallBodyLeft = new CANNON.Body({
+		shape: houseWallShapeLeft,
+		mass: houseWallMassLeft,
+		position: new CANNON.Vec3(45, 5, 50)
+	});
+	world.addBody(houseWallBodyLeft);
+
+	houseWallShapeRight = new CANNON.Box(new CANNON.Vec3(2, 5, 10));
+	houseWallMassRight = 200;
+
+	houseWallBodyRight = new CANNON.Body({
+		shape: houseWallShapeRight,
+		mass: houseWallMassRight,
+		position: new CANNON.Vec3(55, 5, 50)
+	});
+	world.addBody(houseWallBodyRight);
+
+	// another house
+	houseRoofShape2 = new CANNON.Box(new CANNON.Vec3(10, 1, 10));
+	houseRoofMass2 = 200;
+
+	houseRoofBody2 = new CANNON.Body({
+		shape: houseRoofShape2,
+		mass: houseRoofMass2,
+		position: new CANNON.Vec3(-50, 10, -50)
+	});
+	world.addBody(houseRoofBody2);
+
+	houseWallShapeLeft2 = new CANNON.Box(new CANNON.Vec3(2, 5, 10));
+	houseWallMassLeft2 = 200;
+
+	houseWallBodyLeft2 = new CANNON.Body({
+		shape: houseWallShapeLeft2,
+		mass: houseWallMassLeft2,
+		position: new CANNON.Vec3(-45, 5, -50)
+	});
+	world.addBody(houseWallBodyLeft2);
+
+	houseWallShapeRight2 = new CANNON.Box(new CANNON.Vec3(2, 5, 10));
+	houseWallMassRight2 = 200;
+
+	houseWallBodyRight2 = new CANNON.Body({
+		shape: houseWallShapeRight2,
+		mass: houseWallMassRight2,
+		position: new CANNON.Vec3(-55, 5, -50)
+	});
+	world.addBody(houseWallBodyRight2);
+
 }
 
 function initScene() {
@@ -213,7 +295,7 @@ function initScene() {
 			type: CANNON.Body.KINEMATIC,
 			position: new CANNON.Vec3(0, 0, 0),
 			angularDamping: 0,
-			angularVelocity: new CANNON.Vec3(0, 10, 0),
+			angularVelocity: new CANNON.Vec3(0, TORNADO_SPEED, 0),
 			linearDamping: 10
 		});
 
@@ -302,13 +384,49 @@ function initScene() {
 	boxMesh2 = new THREE.Mesh(boxGeometry2, boxMaterial2);
 	scene.add(boxMesh2);
 
-	boxGeometry3 = new THREE.CubeGeometry( 20, 100, 10 );
+	boxGeometry3 = new THREE.CubeGeometry(20, 100, 10);
 	boxMaterial3 = new THREE.MeshPhongMaterial({
 			color: 0xf2a348
 		});
 
 	boxMesh3 = new THREE.Mesh(boxGeometry3, boxMaterial3);
 	scene.add(boxMesh3);
+
+	//make a house
+	var houseColor = 0x439802;
+	houseRoofGeo = new THREE.CubeGeometry(20, 2, 20);
+	houseRoofMat = new THREE.MeshPhongMaterial({
+		color: houseColor
+	});
+	houseRoofMesh = new THREE.Mesh(houseRoofGeo, houseRoofMat);
+	scene.add(houseRoofMesh);
+
+	houseWallGeoLeft = new THREE.CubeGeometry(4, 10, 20);
+	houseWallMatLeft = new THREE.MeshPhongMaterial({
+		color: houseColor
+	});
+	houseWallMeshLeft = new THREE.Mesh(houseWallGeoLeft, houseWallMatLeft);
+	scene.add(houseWallMeshLeft);
+
+	houseWallGeoRight = new THREE.CubeGeometry(4, 10, 20);
+	houseWallMatRight = new THREE.MeshPhongMaterial({
+		color: houseColor
+	});
+	houseWallMeshRight = new THREE.Mesh(houseWallGeoRight, houseWallMatRight);
+	scene.add(houseWallMeshRight);
+
+	var houseColor2 = 0x3430ff;
+	var houseMaterial2 = new THREE.MeshPhongMaterial({
+		color: houseColor2
+	})
+
+	houseRoofMesh2 = new THREE.Mesh(houseRoofGeo, houseMaterial2);
+	houseWallMeshLeft2 = new THREE.Mesh(houseWallGeoLeft, houseMaterial2);
+	houseWallMeshRight2 = new THREE.Mesh(houseWallGeoRight, houseMaterial2);
+
+	scene.add(houseRoofMesh2);
+	scene.add(houseWallMeshLeft2);
+	scene.add(houseWallMeshRight2);
 
 	//--------------------------------------------------
 	// Lights
@@ -396,6 +514,24 @@ function updatePhysics() {
 
 	boxMesh3.position.copy(boxBody3.position);
 	boxMesh3.quaternion.copy(boxBody3.quaternion);
+
+	houseRoofMesh.position.copy(houseRoofBody.position);
+	houseRoofMesh.quaternion.copy(houseRoofBody.quaternion);
+
+	houseWallMeshLeft.position.copy(houseWallBodyLeft.position);
+	houseWallMeshLeft.quaternion.copy(houseWallBodyLeft.quaternion);
+
+	houseWallMeshRight.position.copy(houseWallBodyRight.position);
+	houseWallMeshRight.quaternion.copy(houseWallBodyRight.quaternion);
+
+	houseRoofMesh2.position.copy(houseRoofBody2.position);
+	houseRoofMesh2.quaternion.copy(houseRoofBody2.quaternion);
+
+	houseWallMeshLeft2.position.copy(houseWallBodyLeft2.position);
+	houseWallMeshLeft2.quaternion.copy(houseWallBodyLeft2.quaternion);
+
+	houseWallMeshRight2.position.copy(houseWallBodyRight2.position);
+	houseWallMeshRight2.quaternion.copy(houseWallBodyRight2.quaternion);
 
 	particleSystem.position.copy(particleBodyCompound.position);
 	particleSystem.quaternion.copy(particleBodyCompound.quaternion);
